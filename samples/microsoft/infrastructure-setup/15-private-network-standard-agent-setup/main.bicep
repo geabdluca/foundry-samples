@@ -66,7 +66,7 @@ param existingVnetResourceId string = ''
 @description('Address space for the VNet (only used for new VNet)')
 param vnetAddressPrefix string = '192.168.0.0/16'
 
-@description('Address prefix for the agent subnet. The default value is 192.168.0.0/24 but you can choose any size /26 or any class like 10.0.0.0 or 172.168.0.0')
+@description('Address prefix for the agent subnet. The default value is 192.168.0.0/24 but you can choose any size /26 or any class like 10.0.0.0 or 152.168.0.0')
 param agentSubnetPrefix string = '192.168.0.0/24'
 
 @description('Address prefix for the private endpoint subnet')
@@ -78,6 +78,10 @@ param aiSearchResourceId string = ''
 param azureStorageAccountResourceId string = ''
 @description('The Cosmos DB Account full ARM Resource ID. This is an optional field, and if not provided, the resource will be created.')
 param azureCosmosDBAccountResourceId string = ''
+
+//New Param for resource group of Private DNS zones
+@description('Optional: Resource group containing existing private DNS zones. If specified, DNS zones will not be created.')
+param existingDnsZonesResourceGroup string = ''
 
 var projectName = toLower('${firstProjectName}${uniqueSuffix}')
 var cosmosDBName = toLower('${aiServices}${uniqueSuffix}cosmosdb')
@@ -224,6 +228,7 @@ module privateEndpointAndDNS 'modules-network-secured/private-endpoint-and-dns.b
       aiSearchResourceGroupName: aiSearchServiceResourceGroupName // Resource Group for AI Search Service
       storageAccountResourceGroupName: azureStorageResourceGroupName // Resource Group for Storage Account
       storageAccountSubscriptionId: azureStorageSubscriptionId // Subscription ID for Storage Account
+      existingDnsZonesResourceGroup: existingDnsZonesResourceGroup //adding Existing DNS RG
     }
     dependsOn: [
     aiSearch      // Ensure AI Search exists
@@ -368,3 +373,4 @@ dependsOn: [
   storageContainersRoleAssignment
   ]
 }
+
