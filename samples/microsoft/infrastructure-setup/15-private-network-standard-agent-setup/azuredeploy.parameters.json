@@ -67,6 +67,9 @@
     },
     "projectCapHost": {
       "value": ""
+    },
+    "existingDnsZonesResourceGroup": {
+      "value": ""
     }
   }
 }
