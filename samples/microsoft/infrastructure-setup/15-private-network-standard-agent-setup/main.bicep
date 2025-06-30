@@ -80,8 +80,15 @@ param azureStorageAccountResourceId string = ''
 param azureCosmosDBAccountResourceId string = ''
 
 //New Param for resource group of Private DNS zones
-@description('Optional: Resource group containing existing private DNS zones. If specified, DNS zones will not be created.')
-param existingDnsZonesResourceGroup string = ''
+//@description('Optional: Resource group containing existing private DNS zones. If specified, DNS zones will not be created.')
+//param existingDnsZonesResourceGroup string = ''
+
+@description('Object mapping DNS zone names to their resource group, or empty string to indicate creation')
+param existingDnsZones object
+
+@description('Zone Names for Validation of existing Private Dns Zones')
+param dnsZoneNames array
+
 
 var projectName = toLower('${firstProjectName}${uniqueSuffix}')
 var cosmosDBName = toLower('${aiServices}${uniqueSuffix}cosmosdb')
@@ -161,6 +168,8 @@ module validateExistingResources 'modules-network-secured/validate-existing-reso
     aiSearchResourceId: aiSearchResourceId
     azureStorageAccountResourceId: azureStorageAccountResourceId
     azureCosmosDBAccountResourceId: azureCosmosDBAccountResourceId
+    existingDnsZones: existingDnsZones
+    dnsZoneNames: dnsZoneNames
   }
 }
 
@@ -228,7 +237,7 @@ module privateEndpointAndDNS 'modules-network-secured/private-endpoint-and-dns.b
       aiSearchResourceGroupName: aiSearchServiceResourceGroupName // Resource Group for AI Search Service
       storageAccountResourceGroupName: azureStorageResourceGroupName // Resource Group for Storage Account
       storageAccountSubscriptionId: azureStorageSubscriptionId // Subscription ID for Storage Account
-      existingDnsZonesResourceGroup: existingDnsZonesResourceGroup //adding Existing DNS RG
+      existingDnsZones: existingDnsZones
     }
     dependsOn: [
     aiSearch      // Ensure AI Search exists
@@ -373,4 +382,3 @@ dependsOn: [
   storageContainersRoleAssignment
   ]
 }
-
