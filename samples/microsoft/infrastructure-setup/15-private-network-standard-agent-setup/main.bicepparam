@@ -21,13 +21,13 @@ param aiSearchResourceId = ''
 param azureStorageAccountResourceId = ''
 param azureCosmosDBAccountResourceId = ''
 // Pass the DNS zone map here
-// Leave empty to create new DNS zone
+// Leave empty to create new DNS zone, add the resource group of existing DNS zone to use it
 param existingDnsZones = {
-  'privatelink.services.ai.azure.com': 'AML-priv-RG62765'
-  'privatelink.openai.azure.com': 'AML-priv-RG62765'
-  'privatelink.cognitiveservices.azure.com': 'AML-priv-RG62765'               
-  'privatelink.search.windows.net': 'AML-priv-RG62765'           
-  'privatelink.blob.core.windows.net': 'AML-priv-RG62765'                            
+  'privatelink.services.ai.azure.com': ''
+  'privatelink.openai.azure.com': ''
+  'privatelink.cognitiveservices.azure.com': ''               
+  'privatelink.search.windows.net': ''           
+  'privatelink.blob.core.windows.net': ''                            
   'privatelink.documents.azure.com': ''                       
 }
 
