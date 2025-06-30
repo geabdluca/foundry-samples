@@ -20,7 +20,27 @@ param agentSubnetName = 'agent-subnet'
 param aiSearchResourceId = ''
 param azureStorageAccountResourceId = ''
 param azureCosmosDBAccountResourceId = ''
-param existingDnsZonesResourceGroup = ''
+// Pass the DNS zone map here
+// Leave empty to create new DNS zone
+param existingDnsZones = {
+  'privatelink.services.ai.azure.com': 'AML-priv-RG62765'
+  'privatelink.openai.azure.com': 'AML-priv-RG62765'
+  'privatelink.cognitiveservices.azure.com': 'AML-priv-RG62765'               
+  'privatelink.search.windows.net': 'AML-priv-RG62765'           
+  'privatelink.blob.core.windows.net': 'AML-priv-RG62765'                            
+  'privatelink.documents.azure.com': ''                       
+}
+
+//DNSZones names for validating if they exist
+param dnsZoneNames = [
+  'privatelink.services.ai.azure.com'
+  'privatelink.openai.azure.com'
+  'privatelink.cognitiveservices.azure.com'
+  'privatelink.search.windows.net'
+  'privatelink.blob.core.windows.net'
+  'privatelink.documents.azure.com'
+]
+
 
 // Network configuration: only used when existingVnetResourceId is not provided
 // These addresses are only used when creating a new VNet and subnets
