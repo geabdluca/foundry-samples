@@ -38,7 +38,6 @@ param peSubnetName string
 @description('Suffix for unique resource names')
 param suffix string
 
-
 @description('Resource Group name for existing Virtual Network (if different from current resource group)')
 param vnetResourceGroupName string = resourceGroup().name
 
@@ -63,11 +62,17 @@ param cosmosDBSubscriptionId string = subscription().subscriptionId
 @description('Resource group name for Cosmos DB account')
 param cosmosDBResourceGroupName string = resourceGroup().name
 
-//Parameter if User shares RG of Private DNS zones
-@description('If provided, reference existing DNS zones in this resource group instead of creating them.')
-param existingDnsZonesResourceGroup string = ''
+@description('Map of DNS zone FQDNs to resource group names. If provided, reference existing DNS zones in this resource group instead of creating them.')
+param existingDnsZones object = {
+  'privatelink.services.ai.azure.com': ''
+  'privatelink.openai.azure.com': ''
+  'privatelink.cognitiveservices.azure.com': ''
+  'privatelink.search.windows.net': ''
+  'privatelink.blob.${environment().suffixes.storage}': ''
+  'privatelink.documents.azure.com': ''
+}
 
-// Reference existing services that need private endpoints
+// ---- Resource references ----
 resource aiAccount 'Microsoft.CognitiveServices/accounts@2023-05-01' existing = {
   name: aiAccountName
   scope: resourceGroup()
@@ -93,7 +98,6 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' existing = {
   name: vnetName
   scope: resourceGroup(vnetSubscriptionId, vnetResourceGroupName)
 }
-
 resource peSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-05-01' existing = {
   parent: vnet
   name: peSubnetName
@@ -108,17 +112,13 @@ resource aiAccountPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01
   name: '${aiAccountName}-private-endpoint'
   location: resourceGroup().location
   properties: {
-    subnet: {
-      id: peSubnet.id                    // Deploy in customer hub subnet
-    }
+    subnet: { id: peSubnet.id } // Deploy in customer hub subnet
     privateLinkServiceConnections: [
       {
         name: '${aiAccountName}-private-link-service-connection'
         properties: {
           privateLinkServiceId: aiAccount.id
-          groupIds: [
-            'account'                     // Target AI Services account
-          ]
+          groupIds: [ 'account' ] // Target AI Services account
         }
       }
     ]
@@ -134,17 +134,13 @@ resource aiSearchPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01'
   name: '${aiSearchName}-private-endpoint'
   location: resourceGroup().location
   properties: {
-    subnet: {
-      id: peSubnet.id                    // Deploy in customer hub subnet
-    }
+    subnet: { id: peSubnet.id } // Deploy in customer hub subnet
     privateLinkServiceConnections: [
       {
         name: '${aiSearchName}-private-link-service-connection'
         properties: {
           privateLinkServiceId: aiSearch.id
-          groupIds: [
-            'searchService'               // Target search service
-          ]
+          groupIds: [ 'searchService' ] // Target search service
         }
       }
     ]
@@ -160,17 +156,13 @@ resource storagePrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' 
   name: '${storageName}-private-endpoint'
   location: resourceGroup().location
   properties: {
-    subnet: {
-      id: peSubnet.id                    // Deploy in customer hub subnet
-    }
+    subnet: { id: peSubnet.id } // Deploy in customer hub subnet
     privateLinkServiceConnections: [
       {
         name: '${storageName}-private-link-service-connection'
         properties: {
-          privateLinkServiceId: storageAccount.id
-          groupIds: [
-            'blob'                        // Target blob storage
-          ]
+          privateLinkServiceId: storageAccount.id // Target blob storage
+          groupIds: [ 'blob' ]
         }
       }
     ]
@@ -183,17 +175,13 @@ resource cosmosDBPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01'
   name: '${cosmosDBName}-private-endpoint'
   location: resourceGroup().location
   properties: {
-    subnet: {
-      id: peSubnet.id                    // Deploy in customer hub subnet
-    }
+    subnet: { id: peSubnet.id } // Deploy in customer hub subnet
     privateLinkServiceConnections: [
       {
         name: '${cosmosDBName}-private-link-service-connection'
         properties: {
-          privateLinkServiceId: cosmosDBAccount.id
-          groupIds: [
-            'Sql'                        // Target Cosmos DB account
-          ]
+          privateLinkServiceId: cosmosDBAccount.id // Target Cosmos DB account
+          groupIds: [ 'Sql' ]
         }
       }
     ]
@@ -209,275 +197,206 @@ resource cosmosDBPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01'
 // Private DNS Zone for AI Services (Account)
 // 1) Enables custom DNS resolution for AI Services private endpoint
 
-resource aiServicesPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.services.ai.azure.com'
+var aiServicesDnsZoneName = 'privatelink.services.ai.azure.com'
+var openAiDnsZoneName = 'privatelink.openai.azure.com'
+var cognitiveServicesDnsZoneName = 'privatelink.cognitiveservices.azure.com'
+var aiSearchDnsZoneName = 'privatelink.search.windows.net'
+var storageDnsZoneName = 'privatelink.blob.${environment().suffixes.storage}'
+var cosmosDBDnsZoneName = 'privatelink.documents.azure.com'
+
+// ---- DNS Zone Resource Group lookups ----
+var aiServicesDnsZoneRG = existingDnsZones[aiServicesDnsZoneName]
+var openAiDnsZoneRG = existingDnsZones[openAiDnsZoneName]
+var cognitiveServicesDnsZoneRG = existingDnsZones[cognitiveServicesDnsZoneName]
+var aiSearchDnsZoneRG = existingDnsZones[aiSearchDnsZoneName]
+var storageDnsZoneRG = existingDnsZones[storageDnsZoneName]
+var cosmosDBDnsZoneRG = existingDnsZones[cosmosDBDnsZoneName]
+
+// ---- DNS Zone Resources and References ----
+resource aiServicesPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(aiServicesDnsZoneRG)) {
+  name: aiServicesDnsZoneName
   location: 'global'
 }
 
 // Reference existing private DNS zone if provided
-resource existingaiServicesPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.services.ai.azure.com'
-  scope: resourceGroup(existingDnsZonesResourceGroup)
+resource existingAiServicesPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(aiServicesDnsZoneRG)) {
+  name: aiServicesDnsZoneName
+  scope: resourceGroup(aiServicesDnsZoneRG)
 }
+//creating condition if user pass existing dns zones or not
+var aiServicesDnsZoneId = empty(aiServicesDnsZoneRG) ? aiServicesPrivateDnsZone.id : existingAiServicesPrivateDnsZone.id
 
-resource openAiPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.openai.azure.com'
+resource openAiPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(openAiDnsZoneRG)) {
+  name: openAiDnsZoneName
   location: 'global'
 }
 
 // Reference existing private DNS zone if provided
-resource existingopenAiPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.openai.azure.com'
-  scope: resourceGroup(existingDnsZonesResourceGroup)
+resource existingOpenAiPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(openAiDnsZoneRG)) {
+  name: openAiDnsZoneName
+  scope: resourceGroup(openAiDnsZoneRG)
 }
+//creating condition if user pass existing dns zones or not
+var openAiDnsZoneId = empty(openAiDnsZoneRG) ? openAiPrivateDnsZone.id : existingOpenAiPrivateDnsZone.id
 
-resource cognitiveServicesPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.cognitiveservices.azure.com'
+resource cognitiveServicesPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(cognitiveServicesDnsZoneRG)) {
+  name: cognitiveServicesDnsZoneName
   location: 'global'
 }
 
 // Reference existing private DNS zone if provided
-resource existingcognitiveServicesPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.cognitiveservices.azure.com'
-  scope: resourceGroup(existingDnsZonesResourceGroup)
+resource existingCognitiveServicesPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(cognitiveServicesDnsZoneRG)) {
+  name: cognitiveServicesDnsZoneName
+  scope: resourceGroup(cognitiveServicesDnsZoneRG)
+}
+//creating condition if user pass existing dns zones or not
+var cognitiveServicesDnsZoneId = empty(cognitiveServicesDnsZoneRG) ? cognitiveServicesPrivateDnsZone.id : existingCognitiveServicesPrivateDnsZone.id
+
+resource aiSearchPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(aiSearchDnsZoneRG)) {
+  name: aiSearchDnsZoneName
+  location: 'global'
 }
 
+// Reference existing private DNS zone if provided
+resource existingAiSearchPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(aiSearchDnsZoneRG)) {
+  name: aiSearchDnsZoneName
+  scope: resourceGroup(aiSearchDnsZoneRG)
+}
+//creating condition if user pass existing dns zones or not
+var aiSearchDnsZoneId = empty(aiSearchDnsZoneRG) ? aiSearchPrivateDnsZone.id : existingAiSearchPrivateDnsZone.id
 
+resource storagePrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(storageDnsZoneRG)) {
+  name: storageDnsZoneName
+  location: 'global'
+}
 
-// 2) Link AI Services and Azure OpenAI and Cognitive Services DNS Zone to VNet
-resource aiServicesLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(existingDnsZonesResourceGroup)) {
+// Reference existing private DNS zone if provided
+resource existingStoragePrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(storageDnsZoneRG)) {
+  name: storageDnsZoneName
+  scope: resourceGroup(storageDnsZoneRG)
+}
+//creating condition if user pass existing dns zones or not
+var storageDnsZoneId = empty(storageDnsZoneRG) ? storagePrivateDnsZone.id : existingStoragePrivateDnsZone.id
+
+resource cosmosDBPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(cosmosDBDnsZoneRG)) {
+  name: cosmosDBDnsZoneName
+  location: 'global'
+}
+
+// Reference existing private DNS zone if provided
+resource existingCosmosDBPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(cosmosDBDnsZoneRG)) {
+  name: cosmosDBDnsZoneName
+  scope: resourceGroup(cosmosDBDnsZoneRG)
+}
+//creating condition if user pass existing dns zones or not
+var cosmosDBDnsZoneId = empty(cosmosDBDnsZoneRG) ? cosmosDBPrivateDnsZone.id : existingCosmosDBPrivateDnsZone.id
+
+// ---- DNS VNet Links ----
+resource aiServicesLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(aiServicesDnsZoneRG)) {
   parent: aiServicesPrivateDnsZone
   location: 'global'
   name: 'aiServices-${suffix}-link'
   properties: {
-    virtualNetwork: {
-      id: vnet.id                        // Link to specified VNet
-    }
-    registrationEnabled: false           // Don't auto-register VNet resources
+    virtualNetwork: { id: vnet.id }
+    registrationEnabled: false
   }
 }
-
-
-resource aiOpenAILink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(existingDnsZonesResourceGroup)) {
+resource openAiLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(openAiDnsZoneRG)) {
   parent: openAiPrivateDnsZone
   location: 'global'
   name: 'aiServicesOpenAI-${suffix}-link'
   properties: {
-    virtualNetwork: {
-      id: vnet.id                        // Link to specified VNet
-    }
-    registrationEnabled: false           // Don't auto-register VNet resources
+    virtualNetwork: { id: vnet.id }
+    registrationEnabled: false
   }
 }
-
-resource cognitiveServicesLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(existingDnsZonesResourceGroup)) {
+resource cognitiveServicesLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(cognitiveServicesDnsZoneRG)) {
   parent: cognitiveServicesPrivateDnsZone
   location: 'global'
   name: 'aiServicesCognitiveServices-${suffix}-link'
   properties: {
-    virtualNetwork: {
-      id: vnet.id                        // Link to specified VNet
-    }
-    registrationEnabled: false           // Don't auto-register VNet resources
+    virtualNetwork: { id: vnet.id }
+    registrationEnabled: false
+  }
+}
+resource aiSearchLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(aiSearchDnsZoneRG)) {
+  parent: aiSearchPrivateDnsZone
+  location: 'global'
+  name: 'aiSearch-${suffix}-link'
+  properties: {
+    virtualNetwork: { id: vnet.id }
+    registrationEnabled: false
+  }
+}
+resource storageLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(storageDnsZoneRG)) {
+  parent: storagePrivateDnsZone
+  location: 'global'
+  name: 'storage-${suffix}-link'
+  properties: {
+    virtualNetwork: { id: vnet.id }
+    registrationEnabled: false
+  }
+}
+resource cosmosDBLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(cosmosDBDnsZoneRG)) {
+  parent: cosmosDBPrivateDnsZone
+  location: 'global'
+  name: 'cosmosDB-${suffix}-link'
+  properties: {
+    virtualNetwork: { id: vnet.id }
+    registrationEnabled: false
   }
 }
 
-
-//creating condition if user pass existing dns zones or not
-var aiServicesdnsZoneResourceId = empty(existingDnsZonesResourceGroup)
-  ? aiServicesPrivateDnsZone.id
-  : existingaiServicesPrivateDnsZone.id
-
-var openAidnsZoneResourceId = empty(existingDnsZonesResourceGroup)
-  ? openAiPrivateDnsZone.id
-  : existingopenAiPrivateDnsZone.id
-
-var cognitiveServicesdnsZoneResourceId = empty(existingDnsZonesResourceGroup)
-  ? cognitiveServicesPrivateDnsZone.id
-  : existingcognitiveServicesPrivateDnsZone.id
-
-
-// 3) DNS Zone Group for AI Services
+// ---- DNS Zone Groups ----
 resource aiServicesDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
   parent: aiAccountPrivateEndpoint
   name: '${aiAccountName}-dns-group'
   properties: {
     privateDnsZoneConfigs: [
-      {
-        name: '${aiAccountName}-dns-aiserv-config'
-        properties: {
-          privateDnsZoneId: aiServicesdnsZoneResourceId
-        }
-      }
-      {
-        name: '${aiAccountName}-dns-openai-config'
-        properties: {
-          privateDnsZoneId: openAidnsZoneResourceId
-        }
-      }
-      {
-        name: '${aiAccountName}-dns-cogserv-config'
-        properties: {
-          privateDnsZoneId: cognitiveServicesdnsZoneResourceId
-        }
-      }
+      { name: '${aiAccountName}-dns-aiserv-config', properties: { privateDnsZoneId: aiServicesDnsZoneId } }
+      { name: '${aiAccountName}-dns-openai-config', properties: { privateDnsZoneId: openAiDnsZoneId } }
+      { name: '${aiAccountName}-dns-cogserv-config', properties: { privateDnsZoneId: cognitiveServicesDnsZoneId } }
     ]
   }
-  dependsOn: empty(existingDnsZonesResourceGroup)
-    ? [ aiServicesLink, cognitiveServicesLink, aiOpenAILink ]
-    : []
+  dependsOn: [
+    empty(aiServicesDnsZoneRG) ? aiServicesLink : null
+    empty(openAiDnsZoneRG) ? openAiLink : null
+    empty(cognitiveServicesDnsZoneRG) ? cognitiveServicesLink : null
+  ]
 }
-
-
-
-// Private DNS Zone for AI Search
-// 1) Enables custom DNS resolution for AI Search private endpoint
-resource aiSearchPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.search.windows.net'  // Standard DNS zone for AI Search
-  location: 'global'
-}
-
-// Reference existing private DNS zone if provided
-resource existingaiSearchPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.search.windows.net'
-  scope: resourceGroup(existingDnsZonesResourceGroup)
-}
-
-
-
-// 2) Link AI Search DNS Zone to VNet
-resource aiSearchLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(existingDnsZonesResourceGroup)) {
-  parent: aiSearchPrivateDnsZone
-  location: 'global'
-  name: 'aiSearch-${suffix}-link'
-  properties: {
-    virtualNetwork: {
-      id: vnet.id                        // Link to specified VNet
-    }
-    registrationEnabled: false           // Don't auto-register VNet resources
-  }
-}
-
-// zone group condition
-var aiSearchdnsZoneResourceId = empty(existingDnsZonesResourceGroup)
-  ? aiSearchPrivateDnsZone.id
-  : existingaiSearchPrivateDnsZone.id
-
-
-// 3) DNS Zone Group for AI Search
 resource aiSearchDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
   parent: aiSearchPrivateEndpoint
   name: '${aiSearchName}-dns-group'
   properties: {
     privateDnsZoneConfigs: [
-      {
-        name: '${aiSearchName}-dns-config'
-        properties: {
-          privateDnsZoneId: aiSearchdnsZoneResourceId
-        }
-      }
+      { name: '${aiSearchName}-dns-config', properties: { privateDnsZoneId: aiSearchDnsZoneId } }
     ]
   }
+  dependsOn: [
+    empty(aiSearchDnsZoneRG) ? aiSearchLink : null
+  ]
 }
-
-// Private DNS Zone for Storage
-// 1) Enables custom DNS resolution for blob storage private endpoint
-resource storagePrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.blob.${environment().suffixes.storage}'  // Dynamic DNS zone for storage
-  location: 'global'
-}
-
-// Reference existing private DNS zone if provided
-resource existingstoragePrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.blob.${environment().suffixes.storage}'
-  scope: resourceGroup(existingDnsZonesResourceGroup)
-}
-
-
-
-// 2) Link Storage DNS Zone to VNet
-resource storageLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(existingDnsZonesResourceGroup)) {
-  parent: storagePrivateDnsZone
-  location: 'global'
-  name: 'storage-${suffix}-link'
-  properties: {
-    virtualNetwork: {
-      id: vnet.id                        // Link to specified VNet
-    }
-    registrationEnabled: false           // Don't auto-register VNet resources
-  }
-}
-
-
-
-//zone condition
-var storagednsZoneResourceId = empty(existingDnsZonesResourceGroup)
-  ? storagePrivateDnsZone.id
-  : existingstoragePrivateDnsZone.id
-
-// 3) DNS Zone Group for Storage
 resource storageDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
   parent: storagePrivateEndpoint
   name: '${storageName}-dns-group'
   properties: {
     privateDnsZoneConfigs: [
-      {
-        name: '${storageName}-dns-config'
-        properties: {
-          privateDnsZoneId: storagednsZoneResourceId
-        }
-      }
+      { name: '${storageName}-dns-config', properties: { privateDnsZoneId: storageDnsZoneId } }
     ]
   }
+  dependsOn: [
+    empty(storageDnsZoneRG) ? storageLink : null
+  ]
 }
-
-
-// 1) DNS Zone Group for Cosmos DB
-
-resource cosmosDBPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.documents.azure.com'  // Standard DNS zone for Cosmos DB
-  location: 'global'
-}
-
-// Reference existing private DNS zone if provided
-resource existingcosmosDBPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = if (!empty(existingDnsZonesResourceGroup)) {
-  name: 'privatelink.documents.azure.com'
-  scope: resourceGroup(existingDnsZonesResourceGroup)
-}
-
-
-
-// 2) Link Cosmos DB DNS Zone to VNet
-resource cosmosDBLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (empty(existingDnsZonesResourceGroup)) {
-  parent: cosmosDBPrivateDnsZone
-  location: 'global'
-  name: 'cosmosDB-${suffix}-link'
-  properties: {
-    virtualNetwork: {
-      id: vnet.id                        // Link to specified VNet
-    }
-    registrationEnabled: false           // Don't auto-register VNet resources
-  }
-}
-
-
-// zone group condition
-var cosmosDBdnsZoneResourceId = empty(existingDnsZonesResourceGroup)
-  ? cosmosDBPrivateDnsZone.id
-  : existingcosmosDBPrivateDnsZone.id
-
-// 3) DNS Zone Group for Cosmos DB
 resource cosmosDBDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
   parent: cosmosDBPrivateEndpoint
   name: '${cosmosDBName}-dns-group'
   properties: {
     privateDnsZoneConfigs: [
-      {
-        name: '${cosmosDBName}-dns-config'
-        properties: {
-          privateDnsZoneId: cosmosDBdnsZoneResourceId
-        }
-      }
+      { name: '${cosmosDBName}-dns-config', properties: { privateDnsZoneId: cosmosDBDnsZoneId } }
     ]
   }
+  dependsOn: [
+    empty(cosmosDBDnsZoneRG) ? cosmosDBLink : null
+  ]
 }
