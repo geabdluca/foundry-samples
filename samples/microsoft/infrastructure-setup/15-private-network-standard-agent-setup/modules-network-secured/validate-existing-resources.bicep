@@ -61,8 +61,8 @@ output azureStorageResourceGroupName string = azureStorageResourceGroupName
 
 // Adding DNS Zone Check
 
-@description('Name of the resource group to check for Private DNS zones')
-param existingDnsResourceGroup string
+@description('Object mapping DNS zone names to their resource group, or empty string to indicate creation')
+param existingDnsZones object
 
 @description('List of private DNS zone names to validate')
 param dnsZoneNames array
@@ -75,10 +75,11 @@ var dnsZoneTypes = [
 output dnsZoneExists array = [
   for zoneName in dnsZoneNames: {
     name: zoneName
-    exists: resourceExists('Microsoft.Network/privateDnsZones', zoneName, existingDnsResourceGroup)
+    exists: !empty(existingDnsZones[zoneName])
   }
 ]
 
+/*
 // Helper function to check existence
 function resourceExists(resourceType: string, name: string, rg: string): bool {
   // Use the existing resource reference to check
@@ -87,4 +88,4 @@ function resourceExists(resourceType: string, name: string, rg: string): bool {
     scope: resourceGroup(rg)
   }
   return !empty(res.id)
-}
+}*/
