@@ -68,8 +68,15 @@
     "projectCapHost": {
       "value": ""
     },
-    "existingDnsZonesResourceGroup": {
-      "value": ""
+    "existingDnsZones": {
+      "value": {
+        "privatelink.services.ai.azure.com": "",
+        "privatelink.openai.azure.com": "",
+        "privatelink.cognitiveservices.azure.com": "",
+        "privatelink.search.windows.net": "",
+        "privatelink.blob.core.windows.net": "",
+        "privatelink.documents.azure.com": ""
+      }
     }
   }
 }
