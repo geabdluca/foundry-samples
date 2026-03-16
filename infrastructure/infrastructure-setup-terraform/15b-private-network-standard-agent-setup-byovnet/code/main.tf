@@ -502,7 +502,7 @@ resource "azurerm_role_assignment" "search_index_data_contributor_ai_foundry_pro
     resource.time_sleep.wait_project_identities
   ]
   name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project.name}${azapi_resource.ai_foundry_project.output.identity.principalId}${azapi_resource.ai_search.name}searchindexdatacontributor")
-  scope                = azurerm_ai_search.id
+  scope                = azapi_resource.ai_search.id
   role_definition_name = "Search Index Data Contributor"
   principal_id         = azapi_resource.ai_foundry_project.output.identity.principalId
 }
@@ -514,7 +514,7 @@ resource "azurerm_role_assignment" "search_service_contributor_ai_foundry_projec
     resource.time_sleep.wait_project_identities
   ]
   name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project.name}${azapi_resource.ai_foundry_project.output.identity.principalId}${azapi_resource.ai_search.name}searchservicecontributor")
-  scope                = azurerm_ai_search.id
+  scope                = azapi_resource.ai_search.id
   role_definition_name = "Search Service Contributor"
   principal_id         = azapi_resource.ai_foundry_project.output.identity.principalId
 }
@@ -575,7 +575,7 @@ resource "azurerm_cosmosdb_sql_role_assignment" "cosmosdb_db_sql_role_aifp_accou
   resource_group_name = var.resource_group_name_resources
   account_name        = azurerm_cosmosdb_account.cosmosdb.name
   scope               = azurerm_cosmosdb_account.cosmosdb.id
-  role_definition_id  = "${azurerm_cosmosdb_account.cosmosdb.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
+  role_definition_id  = "${azurem_cosmosdb_account.cosmosdb.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
   principal_id        = azapi_resource.ai_foundry_project.output.identity.principalId
 }
 
