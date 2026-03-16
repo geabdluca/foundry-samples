@@ -502,7 +502,7 @@ resource "azurerm_role_assignment" "search_index_data_contributor_ai_foundry_pro
     resource.time_sleep.wait_project_identities
   ]
   name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project.name}${azapi_resource.ai_foundry_project.output.identity.principalId}${azapi_resource.ai_search.name}searchindexdatacontributor")
-  scope                = azapi_resource.ai_search.id
+  scope                = azurerm_ai_search.id
   role_definition_name = "Search Index Data Contributor"
   principal_id         = azapi_resource.ai_foundry_project.output.identity.principalId
 }
@@ -514,7 +514,7 @@ resource "azurerm_role_assignment" "search_service_contributor_ai_foundry_projec
     resource.time_sleep.wait_project_identities
   ]
   name                 = uuidv5("dns", "${azapi_resource.ai_foundry_project.name}${azapi_resource.ai_foundry_project.output.identity.principalId}${azapi_resource.ai_search.name}searchservicecontributor")
-  scope                = azapi_resource.ai_search.id
+  scope                = azurerm_ai_search.id
   role_definition_name = "Search Service Contributor"
   principal_id         = azapi_resource.ai_foundry_project.output.identity.principalId
 }
@@ -563,46 +563,18 @@ resource "azapi_resource" "ai_foundry_project_capability_host" {
   }
 }
 
-## Create the necessary data plane role assignments to the CosmosDb databases created by the AI Foundry Project
+## Create the necessary data plane role assignment to the CosmosDB account for the AI Foundry Project
 ##
-resource "azurerm_cosmosdb_sql_role_assignment" "cosmosdb_db_sql_role_aifp_user_thread_message_store" {
+resource "azurerm_cosmosdb_sql_role_assignment" "cosmosdb_db_sql_role_aifp_account" {
   provider = azurerm.workload_subscription
 
   depends_on = [
     azapi_resource.ai_foundry_project_capability_host
   ]
-  name                = uuidv5("dns", "${azapi_resource.ai_foundry_project.name}${azapi_resource.ai_foundry_project.output.identity.principalId}userthreadmessage_dbsqlrole")
+  name                = uuidv5("dns", "${azapi_resource.ai_foundry_project.name}${azapi_resource.ai_foundry_project.output.identity.principalId}${azurerm_cosmosdb_account.cosmosdb.name}cosmosdbdatacontributor")
   resource_group_name = var.resource_group_name_resources
   account_name        = azurerm_cosmosdb_account.cosmosdb.name
-  scope               = "${azurerm_cosmosdb_account.cosmosdb.id}/dbs/enterprise_memory/colls/${local.project_id_guid}-thread-message-store"
-  role_definition_id  = "${azurerm_cosmosdb_account.cosmosdb.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
-  principal_id        = azapi_resource.ai_foundry_project.output.identity.principalId
-}
-
-resource "azurerm_cosmosdb_sql_role_assignment" "cosmosdb_db_sql_role_aifp_system_thread_name" {
-  provider = azurerm.workload_subscription
-
-  depends_on = [
-    azurerm_cosmosdb_sql_role_assignment.cosmosdb_db_sql_role_aifp_user_thread_message_store
-  ]
-  name                = uuidv5("dns", "${azapi_resource.ai_foundry_project.name}${azapi_resource.ai_foundry_project.output.identity.principalId}systemthread_dbsqlrole")
-  resource_group_name = var.resource_group_name_resources
-  account_name        = azurerm_cosmosdb_account.cosmosdb.name
-  scope               = "${azurerm_cosmosdb_account.cosmosdb.id}/dbs/enterprise_memory/colls/${local.project_id_guid}-system-thread-message-store"
-  role_definition_id  = "${azurerm_cosmosdb_account.cosmosdb.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
-  principal_id        = azapi_resource.ai_foundry_project.output.identity.principalId
-}
-
-resource "azurerm_cosmosdb_sql_role_assignment" "cosmosdb_db_sql_role_aifp_entity_store_name" {
-  provider = azurerm.workload_subscription
-
-  depends_on = [
-    azurerm_cosmosdb_sql_role_assignment.cosmosdb_db_sql_role_aifp_system_thread_name
-  ]
-  name                = uuidv5("dns", "${azapi_resource.ai_foundry_project.name}${azapi_resource.ai_foundry_project.output.identity.principalId}entitystore_dbsqlrole")
-  resource_group_name = var.resource_group_name_resources
-  account_name        = azurerm_cosmosdb_account.cosmosdb.name
-  scope               = "${azurerm_cosmosdb_account.cosmosdb.id}/dbs/enterprise_memory/colls/${local.project_id_guid}-agent-entity-store"
+  scope               = azurerm_cosmosdb_account.cosmosdb.id
   role_definition_id  = "${azurerm_cosmosdb_account.cosmosdb.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
   principal_id        = azapi_resource.ai_foundry_project.output.identity.principalId
 }
